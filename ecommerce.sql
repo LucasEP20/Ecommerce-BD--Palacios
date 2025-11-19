@@ -326,3 +326,76 @@ SELECT * FROM vista_detalle_pedido_completo;
 SELECT * FROM vista_inventario_completo;
 
 SET SQL_SAFE_UPDATES = 1; /*Activado para la seguridad completa del codigo*/
+
+-- TABLA DE HECHOS PARA ANALÍTICA (BASADA EN DETALLE_PEDIDOS)
+CREATE TABLE fact_ventas (
+    id_detalle_venta INT AUTO_INCREMENT PRIMARY KEY,
+    
+    -- Claves foráneas (Dimensiones)
+    pedido_key INT NOT NULL,
+    producto_key INT NOT NULL,
+    cliente_key INT NOT NULL,
+    
+    -- Hechos (Métricas)
+    cantidad_vendida INT NOT NULL,
+    precio_unitario DECIMAL(10, 2) NOT NULL,
+    subtotal_linea DECIMAL(10, 2) NOT NULL,
+    
+    FOREIGN KEY (pedido_key) REFERENCES pedidos(id),
+    FOREIGN KEY (producto_key) REFERENCES productos(id),
+    FOREIGN KEY (cliente_key) REFERENCES clientes(id)
+    -- Nota: Simplificamos la fecha, usando el pedido_key para obtenerla.
+);
+
+-- Metemos los datos de las tablas en la tabla de hechos
+INSERT INTO fact_ventas (
+    pedido_key,
+    producto_key,
+    cliente_key,
+    cantidad_vendida,
+    precio_unitario,
+    subtotal_linea
+)
+SELECT
+    dp.pedido_id,
+    dp.producto_id,
+    p.cliente_id,
+    dp.cantidad,
+    dp.precio_unitario,
+    dp.subtotal
+FROM detalle_pedidos dp
+JOIN pedidos p ON dp.pedido_id = p.id;
+
+
+/*Transacciones*/
+/*Insertar un nuevo producto en la tabla productos*/
+START TRANSACTION;
+INSERT INTO productos (
+	nombre,
+	descripcion,
+	precio,
+	stock,
+	categoria_id,
+	proveedor_id
+)VALUES (
+	"Table Samsung A3",
+    "Tablet nueva gen",
+    1000000,
+    10,
+    4,
+    1
+);
+COMMIT;
+select * from productos where id=10; /*consulta para mostrar que se insterta el registro en la tabla*/
+
+/*Transaccion que cambia el stock de un producto, usado mas que nada para probar savepoint y rollback*/
+START transaction;
+SELECT nombre, stock FROM productos WHERE id=1;
+savepoint antesActualizacion;
+UPDATE productos
+SET stock=10000
+WHERE id=1;
+SELECT nombre, stock FROM productos WHERE id=1;
+ROLLBACK to antesActualizacion;
+SELECT nombre, stock FROM productos WHERE id=1;
+COMMIT;
